@@ -56,8 +56,14 @@ impl UmaFlagsExt for UmaFlags {
         }
         self.aijiao |= rhs.aijiao;
         self.good_trainer |= rhs.good_trainer;
-        self.bad_trainer |= rhs.bad_trainer;
+        // 恢复精神盾：挡一次「不擅长训练」不良状态（事件 bad_trainer 路径）
+        if rhs.bad_trainer && self.ill_guard_count > 0 {
+            self.ill_guard_count -= 1;
+        } else {
+            self.bad_trainer |= rhs.bad_trainer;
+        }
         self.positive_thinking_count += rhs.positive_thinking_count;
+        self.ill_guard_count += rhs.ill_guard_count;
         self.refresh_mind += rhs.refresh_mind;
         self.lucky_count += rhs.lucky_count;
         self.doll |= rhs.doll;
@@ -67,7 +73,12 @@ impl UmaFlagsExt for UmaFlags {
             ill.remove(Ill::ANY);
             ill.insert(Ill::UNKNOWN);
         }
-        self.ill.insert(ill);
+        // 恢复精神（不良状态盾）：有盾时挡一次生病，消耗一层、不真正染病
+        if !ill.is_empty() && self.ill_guard_count > 0 {
+            self.ill_guard_count -= 1;
+        } else {
+            self.ill.insert(ill);
+        }
         // 同置：bad_trainer 与 BAD_TRAINER 位任一来源触发即两边都置
         if self.bad_trainer || self.ill.contains(Ill::BAD_TRAINER) {
             self.bad_trainer = true;
@@ -84,6 +95,7 @@ impl UmaFlagsExt for UmaFlags {
         self.bad_trainer &= !rhs.bad_trainer;
         // 次数类状态按下限 0 扣减（心情盾被消耗、幸运体质失效）
         self.positive_thinking_count = (self.positive_thinking_count - rhs.positive_thinking_count).max(0);
+        self.ill_guard_count = (self.ill_guard_count - rhs.ill_guard_count).max(0);
         self.refresh_mind -= rhs.refresh_mind;
         self.lucky_count = (self.lucky_count - rhs.lucky_count).max(0);
         self.doll &= !rhs.doll;
